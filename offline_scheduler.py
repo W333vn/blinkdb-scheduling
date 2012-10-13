@@ -20,8 +20,6 @@ def buildModel(systemFutureState):
 
   model = Model()
 
-  model += Minimize(Sum()) #Minimize over startTimes + runningTimes if index is for a root task
-
   # Each row of taskDidRun sums to at least 1
 
   return None
@@ -37,6 +35,7 @@ class OfflineOptimalScheduler(OfflineScheduler):
     #FIXME: Solve MIP
     model = buildModel(systemFutureState)
     solver = Mistral.Solver(model)
+    self.scheduledTasks = {}
 
   def handleNewQuery(self, newSystemState):
     # Lookup the schedule for the items in the queue and return it.
@@ -44,7 +43,7 @@ class OfflineOptimalScheduler(OfflineScheduler):
     for query in newSystemState.getQueue():
       for scheduledTask in self.scheduledTasks[query]:
         time = scheduledTask.getStartTime()
-        currentTasksForTime = tasksByTime.get(time, default=None)
+        currentTasksForTime = tasksByTime.get(time, None)
         if currentTasksForTime is None:
           currentTasksForTime = []
         tasksByTime[time] = currentTasksForTime + scheduledTask

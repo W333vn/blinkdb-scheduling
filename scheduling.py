@@ -45,7 +45,7 @@ class Schedule(object):
     to start at time @tick along with the machine to which they should be
     assigned.
     """
-    return self.tasksByTime.get(time, default=Schedule.EMPTY_SCHEDULE)
+    return self.tasksByTime.get(time, Schedule.EMPTY_SCHEDULE)
 
 class SystemConfiguration(object):
   """
@@ -77,7 +77,7 @@ class SystemState(object):
       along with the machines on which they are running.
     """
     self.configuration = configuration
-    self.currentTIme = currentTime
+    self.currentTime = currentTime
     self.queue = queue
     self.runningQueries = runningQueries
     self.runningTasks = runningTasks
@@ -86,7 +86,7 @@ class SystemState(object):
     return self.configuration
 
   def getCurrentTime(self):
-    return self.currentTIme
+    return self.currentTime
 
   def getQueue(self):
     """
@@ -140,27 +140,31 @@ class Query(object):
     return self.executionAlternatives
 
 class JobDag(object):
-  def __init__(self, sink):
+  def __init__(self, root):
     """
-    @sink is the last node that needs to be executed - the single node that
-    produces the result of a query and on which nothing depends.
-    @sink.getParents() points recursively to the rest of this graph.
+    @root is the last node that needs to be executed - the single node that
+      produces the result of a query and on which nothing depends.
+      @root.getChildren() points recursively to the rest of this graph.
     """
-    self.sink = sink
+    self.root = root
   
-  def getSink(self):
-    return self.sink
+  def getRoot(self):
+    return self.root
 
 class JobNode(object):
-  def __init__(self, job, parents):
+  def __init__(self, job, children):
+    """
+    @children is a list of children on which @job depends.  That is, @job
+      cannot be executed until @children are executed.
+    """
     self.job = job
-    self.parents = parents
+    self.children = children
   
   def getJob(self):
     return self.job
   
-  def getParents(self):
-    return self.parents
+  def getChildren(self):
+    return self.children
 
 class Job(object):
   """
@@ -187,15 +191,8 @@ class Job(object):
 class Task(object):
   """
   A part of a job, like a mapper, which acts on a particular dataset.  We are
-  free to choose where to run the task.
-  """
-  def __init__(self, dataset):
-    self.dataset = dataset
-
-class Dataset(object):
-  """
-  A dataset for a task, which may be available in multiple locations.  The
-  running time for each machine is assumed to be known in advance.
+  free to choose where to run the task.  We assume that we know the time it
+  will take to run this task on each machine.
 
   NOTE(henry): Someone has to multiply the data size by an appropriate constant
   depending on whether the dataset is in memory, on disk, or not resident on
@@ -247,6 +244,12 @@ class ScheduledTask(object):
 
   def getMachine(self):
     return self.machine
+
+  def __eq__(self, other):
+    return self.task == other.task and self.machine == other.machine
+
+  def __ne__(self, other):
+    return not self == other
 
 class SystemFutureState(object):
   """
