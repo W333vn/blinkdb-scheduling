@@ -65,21 +65,19 @@ class SystemState(object):
   """
   The current state of a system.
   """
-  def __init__(self, configuration, currentTime, queue, runningQueries, runningTasks):
+  def __init__(self, configuration, currentTime, queue, runningTasks):
     """
     @configuration: The static configuration of the system.
     @currentTime: The current time, in ticks (time is defined in arbitrary
       units).
-    @queue: The current queue of queries, not including queries that currently
-      have tasks running.
-    @runningQueries: The queries that currently have tasks running.
+    @queue: The current queue of queries, including queries that currently
+      have tasks running but have not yet finished.
     @runningTasks: A list of RunningTasks, the tasks that are currently running
       along with the machines on which they are running.
     """
     self.configuration = configuration
     self.currentTime = currentTime
     self.queue = queue
-    self.runningQueries = runningQueries
     self.runningTasks = runningTasks
     
   def getConfiguration(self):
@@ -93,12 +91,6 @@ class SystemState(object):
     A list of the currently-enqueued queries.
     """
     return self.queue
-  
-  def getRunningQueries(self):
-    """
-    The set of queries that are currently running.
-    """
-    return self.runningQueries
 
   def getRunningTasks(self):
     return self.runningTasks

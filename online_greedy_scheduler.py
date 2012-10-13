@@ -6,28 +6,65 @@ Online queue-greedy scheduling algorithm for BlinkDB simulations.
 import unittest
 from collections import defaultdict
 
-import Mistral
-from Numberjack import *
+from zibopt import scip
 
 from scheduling import *
 import scheduling
+from util import *
 
-def addFakeRoot(fakeRootTask, originalJobDag):
+def addFakeRoots(query):
   """
-  Add a job depending on @fakeRootTask as the new root of @originalJobDag.
+  For each query in @queries, add a 0-time job depending on the root
+  tasks of that query.  This allows us to care only about the finishing time
+  of the new fake root.
   """
-  return JobDag(JobNode(Job(fakeRootTask), [originalJobDag.getRoot()]))
 
-def flattenToTasks(jobDag):
-  return flattenToTasksUnderNode(jobDag.getRoot())
+  def addFakeRoot(originalJobDag):
+    fakeRootJob = Job([scheduling.Task(defaultdict(int))], 1)
+    return JobDag(JobNode(fakeRootJob, [originalJobDag.getRoot()]))
 
-def flattenToTasksUnderNode(jobNode):
-  tasks = jobNode.getJob().getTasks()
-  for child in jobNode.getChildren():
-    tasks += flattenToTasksUnderNode(child)
+  return Query([addFakeRoot(originalJobDag) for originalJobDag in query.getExecutionAlternatives()])
+
+def visitTasks(query, visitor):
+  """
+  Visit all tasks in @query with @visitor.
+
+  @visitor: lambda task, jobNode, jobDag: [do arbitrary things]
+  """
+  visitedNodes = set()
+
+  def visitTasksUnderNode(jobDag, jobNode):
+    if jobNode in visitedNodes:
+      return
+    else:
+      visitedNodes.add(jobNode)
+      for task in jobNode.getJob().getTasks():
+        visitor(task, jobNode, jobDag)
+      for child in jobNode.getChildren():
+        visitTasksUnderNode(jobDag, child)
+
+  for jobDag in query.getExecutionAlternatives():
+    visitTasksUnderNode(jobDag, jobDag.getRoot())
+
+def tasksInQuery(query):
+  """
+  @return an iterator over all the tasks in @query.
+  """
+  tasks = []
+  visitTasks(query, lambda task, jobNode, jobDag: tasks.append(task))
   return tasks
 
-LARGE_NUMBER = 2**31
+
+def mapTasksToNodes(query):
+  """
+  @return a map from the tasks in @query to the JobNodes in which they reside.
+  """
+  theMap = {}
+  def visitTask(task, jobNode, jobDag): theMap[task] = jobNode
+  visitTasks(query, visitTask)
+  return theMap
+
+LARGE_NUMBER = 100000 #FIXME
 
 class OnlineGreedyScheduler(Scheduler):
   def __init__(self):
@@ -44,81 +81,108 @@ class OnlineGreedyScheduler(Scheduler):
     #  - No currently running tasks or queries
     #  - No alternative datasets (numRequiredTasks = len(tasks))
 
-    machines = newSystemState.getConfiguration().getMachines()
+    # The set of tasks in our original input, before we do any tricky
+    # modifications to facilitate solving our optimization problem.
+    originalTasks = frozenset(flatten(tasksInQuery(query) for query in newSystemState.getQueue()))
+
+    systemState = SystemState(
+      newSystemState.getConfiguration(),
+      newSystemState.getCurrentTime(),
+      [addFakeRoots(query) for query in newSystemState.getQueue()],
+      newSystemState.getRunningTasks())
+
+    machines = systemState.getConfiguration().getMachines()
     numMachines = len(machines)
 
-    tasks = []
-    fakeRootTasks = set()
-    for query in newSystemState.getQueue():
-      #HACK(henry): We introduce a fake root job that depends on the real root
-      # and whose task takes 0 time.  Then our objective function can care only
-      # about the finishing time of the fake task.  This is equivalent to, but
-      # easier than, depending on the max finishing time of any task in a job.
-      fakeRoot = scheduling.Task(Dataset(defaultdict(int)))
-      fakeRootTasks += fakeRoot
-      tasks += flattenToTasks(addFakeRoot(fakeRoot, query.getExecutionAlternatives()[0]))
+    tasks = list(flatten(tasksInQuery(query) for query in systemState.getQueue()))
+    taskIndices = {task:index for index, task in enumerate(tasks)}
     numTasks = len(tasks)
 
-    model = Model()
+    # The JobNode associated with each task.  This allows fast computation of
+    # dependencies between tasks.
+    tasksToNodes = unionDicts(mapTasksToNodes(query) for query in systemState.getQueue())
+
+    solver = scip.solver(quiet=False)
 
     # Main problem variables.  Some others are introduced as needed when
     # constraints are created.
-    assignments = Matrix(numMachines, numTasks) # Machines are columns, tasks are rows
-    startingTimes = VarArray(numTasks)
-    runningTimes = VarArray(numTasks)
+    assignments = [[solver.variable(scip.BINARY) for machineIdx in xrange(numMachines)]
+                   for taskIdx in xrange(numTasks)] # Machines are columns, tasks are rows
+    startingTimes = [solver.variable(scip.CONTINUOUS) for taskIdx in xrange(numTasks)]
+    runningTimes = [solver.variable(scip.CONTINUOUS) for taskIdx in xrange(numTasks)]
 
-    # As noted above, we only care about the finishing time of the root tasks,
-    # so everyone else gets coefficient 0 in the objective.
-    objective = Minimize(Sum(
-      startingTimes + runningTimes,
-      [1 if tasks[index] in fakeRootTasks else 0 for index in xrange(numTasks)]
-    ))
-    model.add(objective)
+    # Encode the requirement that each task is assigned at least once.
+    for taskIdx in xrange(numTasks):
+      task = tasks[taskIdx]
+      solver += sum(assignments[taskIdx]) >= 1
 
     # Encode the requirement that each machine runs only 1 task at a time.
-    for machineIdx in xrange(numMachines):
-      for taskAIdx in xrange(numTasks):
-        for taskBIdx in xrange(numTasks):
-          # This variable is
-          taskAFinishesBeforeTaskBStarts = Variable() #FIXME: Should be {0, 1}
-          model.add(
-            (startingTimes[taskAIdx] + runningTimes[taskAIdx] - startingTimes[taskBIdx])
-            <= taskAFinishesBeforeTaskBStarts * LARGE_NUMBER)
+    for taskAIdx in xrange(numTasks):
+      for taskBIdx in xrange(numTasks):
+        print("Adding nonoverlappingness constraints for ", taskAIdx, taskBIdx)
+        taskAFinishesBeforeTaskBStarts = solver.variable(scip.BINARY)
+        solver += \
+          (startingTimes[taskAIdx] + runningTimes[taskAIdx] - startingTimes[taskBIdx])\
+            <= LARGE_NUMBER * taskAFinishesBeforeTaskBStarts
 
-          taskBFinishesBeforeTaskAStarts = Variable()
-          model.add(
-            (startingTimes[taskBIdx] + runningTimes[taskBIdx] - startingTimes[taskAIdx])
-            <= taskBFinishesBeforeTaskAStarts * LARGE_NUMBER)
+        taskBFinishesBeforeTaskAStarts = solver.variable(scip.BINARY)
+        solver += \
+          (startingTimes[taskBIdx] + runningTimes[taskBIdx] - startingTimes[taskAIdx])\
+            <= LARGE_NUMBER * taskBFinishesBeforeTaskAStarts
 
+        for machineIdx in xrange(numMachines):
           noOverlapBetweenAAndB = \
-            assignments[taskAIdx][machineIdx]\
-            + assignments[taskBIdx][machineIdx]\
-            + taskAFinishesBeforeTaskBStarts\
-            + taskBFinishesBeforeTaskAStarts\
+            (assignments[taskAIdx][machineIdx]
+              + assignments[taskBIdx][machineIdx]
+              + taskAFinishesBeforeTaskBStarts
+              + taskBFinishesBeforeTaskAStarts)\
             <= 4
-          model.add(noOverlapBetweenAAndB)
+          solver += noOverlapBetweenAAndB
+        pass
 
     # Encode dependencies.
     for taskIdx in xrange(numTasks):
-      for dependencyTaskIdx in getDependencies(tasks[taskIdx]):
-        taskStartsAfterDependency = startingTimes[taskIdx] >= startingTimes[dependencyTaskIdx] + runningTimes[dependencyTaskIdx]
-        model.add(taskStartsAfterDependency)
+      dependentJobNodes = tasksToNodes[tasks[taskIdx]].getChildren()
+      dependentTasks = flatten(jobNode.getJob().getTasks() for jobNode in dependentJobNodes)
+      for dependencyTaskIdx in (taskIndices[task] for task in dependentTasks):
+        print "Dependency", (taskIdx, dependencyTaskIdx)
+        taskStartsAfterDependency =\
+          startingTimes[taskIdx] >= startingTimes[dependencyTaskIdx] + runningTimes[dependencyTaskIdx]
+        solver += taskStartsAfterDependency
 
     # Encode costs.
     for machineIdx in xrange(numMachines):
       for taskIdx in xrange(numTasks):
-        runningTime = tasks[taskIdx].get
-        taskTakesItsRunningTimeOnAssignedMachine = runningTimes[taskIdx] >= assignments[taskIdx][machineIdx] * tasks[taskIdx]
+        # If a task is assigned to a machine, its running time is at least the
+        # time it takes to run on that machine.  (Technically the running time
+        # is the minimum of running times on all machines the task runs on, but
+        # we don't really want a task to run on multiple machines anyway - that
+        # would be redundant.)
+        runningTime = tasks[taskIdx].getRunningTime(machines[machineIdx])
+        taskTakesItsRunningTimeOnAssignedMachine =\
+          runningTimes[taskIdx] >= (runningTime * assignments[taskIdx][machineIdx])
+        solver += taskTakesItsRunningTimeOnAssignedMachine
 
-    solver = Mistral.Solver(model)
-    solver.setVerbosity(1)
-    solver.solve()
+    # As noted above, we only care about the finishing time of the root tasks,
+    # which we added as fake roots to each query.  So everyone else gets
+    # coefficient 0 in the objective.
+    entersObjective = [0 if tasks[taskIdx] in originalTasks else 1 for taskIdx in xrange(numTasks)]
+    solution = solver.minimize(sum(entersObjective[taskIdx] * startingTime for taskIdx, startingTime in enumerate(startingTimes))
+                               + sum(entersObjective[taskIdx] * runningTime for taskIdx, runningTime in enumerate(runningTimes)))
 
-    tasksByTime = {}
+    print ("Minimum total finishing time in solution: ", solution.objective)
+    for taskIdx in xrange(numTasks):
+      print("Solution for task: ", taskIdx, solution[startingTimes[taskIdx]], solution[runningTimes[taskIdx]])
+
+    tasksByTime = defaultdict(list)
     for taskIdx, startingTime in enumerate(startingTimes):
       task = tasks[taskIdx]
-      if task not in fakeRootTasks:
-        tasksByTime[startingTime] = tasks[taskIdx]
+      if task in originalTasks:
+        taskRow = assignments[taskIdx]
+        print("Assigned task: ", taskIdx, solution[startingTime], [solution[taskValue] for taskValue in taskRow])
+        assignedMachineIdx = argmax(lambda machineIdx: solution[taskRow[machineIdx]], xrange(numMachines))
+        print("Assigned to machine: ", assignedMachineIdx)
+        tasksByTime[solution[startingTime]].append(ScheduledTask(tasks[taskIdx], machines[assignedMachineIdx]))
     return Schedule(tasksByTime)
 
 
@@ -133,18 +197,18 @@ class TestOnlineGreedyScheduler(unittest.TestCase):
     """
     machines = [Machine(0)]
     configuration = SystemConfiguration(machines)
-    query0Task0 = scheduling.Task(Dataset({machines[0]: 1000}))
+    query0Task0 = scheduling.Task({machines[0]: 1000})
     query0 = Query([JobDag(JobNode(Job([query0Task0], 1), []))])
-    query1Task0 = scheduling.Task(Dataset({machines[0]: 200}))
+    query1Task0 = scheduling.Task({machines[0]: 200})
     query1 = Query([JobDag(JobNode(Job([query1Task0], 1), []))])
     queue = [query0, query1]
-    systemState = SystemState(configuration, 0, queue, [], [])
+    systemState = SystemState(configuration, 0, queue, [])
 
     scheduler = OnlineGreedyScheduler()
     schedule = scheduler.handleNewQuery(systemState)
 
-    self.assertEqual(schedule.getScheduledTasksForTime(0), [ScheduledTask(query1Task0)])
-    self.assertEqual(schedule.getScheduledTasksForTime(200), [ScheduledTask(query0Task0)])
+    self.assertEqual(schedule.getScheduledTasksForTime(0), [ScheduledTask(query1Task0, machines[0])])
+    self.assertEqual(schedule.getScheduledTasksForTime(200), [ScheduledTask(query0Task0, machines[0])])
 
   def test_initialSchedule_2machines(self):
     """
@@ -159,12 +223,12 @@ class TestOnlineGreedyScheduler(unittest.TestCase):
     """
     machines = [Machine(0), Machine(1)]
     configuration = SystemConfiguration(machines)
-    query0Task0 = scheduling.Task(Dataset({machines[0]: 200, machines[1]: 300}))
+    query0Task0 = scheduling.Task({machines[0]: 200, machines[1]: 300})
     query0 = Query([JobDag(JobNode(Job([query0Task0], 1), []))])
-    query1Task0 = scheduling.Task(Dataset({machines[0]: 300, machines[1]: 200}))
+    query1Task0 = scheduling.Task({machines[0]: 300, machines[1]: 200})
     query1 = Query([JobDag(JobNode(Job([query1Task0], 1), []))])
     queue = [query0, query1]
-    systemState = SystemState(configuration, 0, queue, [], [])
+    systemState = SystemState(configuration, 0, queue, [])
 
     scheduler = OnlineGreedyScheduler()
     schedule = scheduler.handleNewQuery(systemState)
@@ -190,14 +254,14 @@ class TestOnlineGreedyScheduler(unittest.TestCase):
     """
     machines = [Machine(0), Machine(1)]
     configuration = SystemConfiguration(machines)
-    query0Task0 = scheduling.Task(Dataset({machines[0]: 200, machines[1]: 201}))
-    query0Task1 = scheduling.Task(Dataset({machines[0]: 1201, machines[1]: 1200}))
+    query0Task0 = scheduling.Task({machines[0]: 200, machines[1]: 201})
+    query0Task1 = scheduling.Task({machines[0]: 1201, machines[1]: 1200})
     query0 = Query([JobDag(JobNode(Job([query0Task0, query0Task1], 2), []))])
-    query1Task0 = scheduling.Task(Dataset({machines[0]: 1000, machines[1]: 1001}))
-    query1Task1 = scheduling.Task(Dataset({machines[0]: 1001, machines[1]: 1000}))
+    query1Task0 = scheduling.Task({machines[0]: 1000, machines[1]: 1001})
+    query1Task1 = scheduling.Task({machines[0]: 1001, machines[1]: 1000})
     query1 = Query([JobDag(JobNode(Job([query1Task0, query1Task1], 2), []))])
     queue = [query0, query1]
-    systemState = SystemState(configuration, 0, queue, [], [])
+    systemState = SystemState(configuration, 0, queue, [])
 
     scheduler = OnlineGreedyScheduler()
     schedule = scheduler.handleNewQuery(systemState)
