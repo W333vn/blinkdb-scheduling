@@ -1,0 +1,15 @@
+Metadata-Version: 1.0
+Name: python-zibopt
+Version: 0.7.2.dev-r226
+Summary: ZIB Optimization Suite interface for python
+Home-page: http://code.google.com/p/python-zibopt/
+Author: Ryan J. O'Neil
+Author-email: ryanjoneil@gmail.com
+License: UNKNOWN
+Download-URL: http://code.google.com/p/python-zibopt/downloads/list
+Description: UNKNOWN
+Keywords: mixed binary integer programming optimization zib zibopt
+Platform: UNKNOWN
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: GNU General Public License (GPL)
+Classifier: Topic :: Scientific/Engineering :: Mathematics

@@ -1,0 +1,64 @@
+\documentclass[leqno]{article}
+\usepackage{a4wide}
+\usepackage{amsmath,amsfonts,amssymb,booktabs}
+\usepackage{supertabular}
+\pagestyle{empty}
+
+\begin{document}
+
+\begin{center}
+\setlength{\tabcolsep}{2pt}
+\newcommand{\g}{\raisebox{0.25ex}{\tiny $>$}}
+\tablehead{
+\toprule
+Name                &  Conss &   Vars &     Dual Bound &   Primal Bound &  Gap\% &     Nodes &     Time \\
+\midrule
+}
+\tabletail{
+\midrule
+\multicolumn{8}{r} \; continue next page \\
+\bottomrule
+}
+\tablelasttail{\bottomrule}
+\tablecaption{SCIP with default settings}
+\begin{supertabular*}{\textwidth}{@{\extracolsep{\fill}}lrrrrrrr@{}}
+mcf128-4-1          &    637 &   1566 &               14 &               14 &    0.0 &       137 &      0.1\\
+mcf64-4-1           &    336 &    795 &               10 &               10 &    0.0 &       528 &      0.2\\
+bell5               &     53 &     80 &       8966406.49 &       8966406.49 &    0.0 &      1217 &      0.3\\
+blend2              &    116 &    198 &         7.598985 &         7.598985 &    0.0 &       164 &      0.4\\
+dcmulti             &    352 &    522 &           188182 &           188182 &    0.0 &       130 &      1.3\\
+egout               &     37 &     49 &         568.1007 &         568.1007 &    0.0 &         1 &      0.0\\
+enigma              &     21 &    100 &                0 &                0 &    0.0 &      1327 &      0.3\\
+flugpl              &     13 &     14 &          1201500 &          1201500 &    0.0 &       121 &      0.0\\
+gt2                 &     28 &    173 &            21166 &            21166 &    0.0 &         1 &      0.0\\
+lseu                &     33 &     70 &             1120 &             1120 &    0.0 &       552 &      0.2\\
+misc03              &     95 &    138 &             3360 &             3360 &    0.0 &       143 &      0.9\\
+modglob             &    286 &    384 &       20740508.1 &       20740508.1 &    0.0 &      1408 &      1.2\\
+p0548               &    152 &    218 &             8691 &             8691 &    0.0 &        14 &      0.2\\
+pp08a               &    133 &    234 &             7350 &             7350 &    0.0 &       524 &      1.1\\
+rgn                 &     61 &    115 &       82.1999973 &       82.1999973 &    0.0 &        66 &      0.2\\
+stein27             &    118 &     27 &               18 &               18 &    0.0 &      4045 &      0.7\\
+vpm2                &    128 &    181 &            13.75 &            13.75 &    0.0 &       373 &      0.8\\
+bip\_cross\_min.10.10.10.1 &    289 &    105 &                1 &                1 &    0.0 &         4 &      0.1\\
+ex1266              &     87 &    168 &             16.3 &             16.3 &    0.0 &        86 &      0.5\\
+meanvarx            &     37 &     30 &       14.3692018 &       14.3692018 &    0.0 &       133 &      0.2\\
+tltr                &     75 &     56 &       48.0666667 &       48.0666667 &    0.0 &        20 &      0.1\\
+util                &     15 &     32 &        999.57875 &        999.57875 &    0.0 &       404 &      0.1\\
+factor-mod-size=9-P0=67-P1=349-P2=67-P3=499-P4=79-P5=347-P6=307-B &    397 &    534 &                3 &                3 &    0.0 &         1 &      0.1\\
+normalized-bsg\_10\_4\_5 &     77 &     66 &               -4 &               -4 &    0.0 &         7 &      0.1\\
+normalized-mds\_10\_4\_3 &     62 &     62 &                2 &                2 &    0.0 &         1 &      0.0\\
+normalized-mds\_50\_25\_5 &   1514 &   1514 &                3 &                3 &    0.0 &        10 &      1.2\\
+meanvarxsc          &     30 &     23 &       14.3691929 &       14.3691929 &    0.0 &       231 &      0.1\\
+semicon1            &      3 &      3 &              1.1 &              1.1 &    0.0 &         4 &      0.0\\
+findRoot            &      3 &    101 &                1 &                1 &    0.0 &         9 &      0.0\\
+pcu\_0.01           &     65 &    516 &      0.167527525 &      0.167527525 &    0.0 &      7073 &      1.3\\
+pcu\_0.1            &     65 &    186 &      0.185145653 &      0.185145653 &    0.0 &      4321 &      0.6\\
+sparse2             &     48 &     64 &               26 &               26 &    0.0 &     36789 &      2.9\\
+\midrule
+Total          (32) &        &        &                &                &        &     59844 &     15.3\\
+Geom. Mean          &        &        &                &                &        &        98 &      1.1\\
+Shifted Geom.       &        &        &                &                &        &       278 &      0.5 \\
+\noalign{\vspace{6pt}}
+\end{supertabular*}
+\end{center}
+\end{document}

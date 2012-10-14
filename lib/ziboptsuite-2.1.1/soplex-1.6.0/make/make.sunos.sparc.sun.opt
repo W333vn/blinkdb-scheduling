@@ -1,0 +1,9 @@
+CXX	=	CC
+CPPFLAGS=	-Isrc -DNDEBUG  
+CXXFLAGS=	-fast -xprefetch=auto -xipo=2
+LDFLAGS	=	-lm
+RANLIB	=	true
+AR	=	CC
+ARFLAGS	=	$(CXXFLAGS) -xar -o
+ZLIB_FLAGS	=
+ZLIB_LDFLAGS 	=	-lz

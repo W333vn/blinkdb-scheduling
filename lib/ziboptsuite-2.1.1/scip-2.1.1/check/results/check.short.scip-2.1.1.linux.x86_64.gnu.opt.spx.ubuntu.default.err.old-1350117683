@@ -1,0 +1,99 @@
+Linux ubuntu 3.2.0-29-generic #46-Ubuntu SMP Fri Jul 27 17:03:23 UTC 2012 x86_64 x86_64 x86_64 GNU/Linux
+Sat Oct 13 01:38:01 PDT 2012
+@01 instances/Indicator/mcf128-4-1.lp ===========
+Sat Oct 13 01:38:01 PDT 2012
+Sat Oct 13 01:38:02 PDT 2012
+@01 instances/Indicator/mcf64-4-1.lp ===========
+Sat Oct 13 01:38:02 PDT 2012
+Sat Oct 13 01:38:02 PDT 2012
+@01 instances/MIP/bell5.mps ===========
+Sat Oct 13 01:38:02 PDT 2012
+Sat Oct 13 01:38:02 PDT 2012
+@01 instances/MIP/blend2.mps ===========
+Sat Oct 13 01:38:02 PDT 2012
+Sat Oct 13 01:38:03 PDT 2012
+@01 instances/MIP/dcmulti.mps ===========
+Sat Oct 13 01:38:03 PDT 2012
+Sat Oct 13 01:38:04 PDT 2012
+@01 instances/MIP/egout.mps ===========
+Sat Oct 13 01:38:04 PDT 2012
+Sat Oct 13 01:38:04 PDT 2012
+@01 instances/MIP/enigma.mps ===========
+Sat Oct 13 01:38:04 PDT 2012
+Sat Oct 13 01:38:05 PDT 2012
+@01 instances/MIP/flugpl.mps ===========
+Sat Oct 13 01:38:05 PDT 2012
+Sat Oct 13 01:38:05 PDT 2012
+@01 instances/MIP/gt2.mps ===========
+Sat Oct 13 01:38:05 PDT 2012
+Sat Oct 13 01:38:05 PDT 2012
+@01 instances/MIP/lseu.mps ===========
+Sat Oct 13 01:38:05 PDT 2012
+Sat Oct 13 01:38:05 PDT 2012
+@01 instances/MIP/misc03.mps ===========
+Sat Oct 13 01:38:05 PDT 2012
+Sat Oct 13 01:38:06 PDT 2012
+@01 instances/MIP/modglob.mps ===========
+Sat Oct 13 01:38:07 PDT 2012
+Sat Oct 13 01:38:08 PDT 2012
+@01 instances/MIP/p0548.mps ===========
+Sat Oct 13 01:38:08 PDT 2012
+Sat Oct 13 01:38:08 PDT 2012
+@01 instances/MIP/pp08a.mps ===========
+Sat Oct 13 01:38:08 PDT 2012
+Sat Oct 13 01:38:10 PDT 2012
+@01 instances/MIP/rgn.mps ===========
+Sat Oct 13 01:38:10 PDT 2012
+Sat Oct 13 01:38:10 PDT 2012
+@01 instances/MIP/stein27.mps ===========
+Sat Oct 13 01:38:10 PDT 2012
+Sat Oct 13 01:38:11 PDT 2012
+@01 instances/MIP/vpm2.mps ===========
+Sat Oct 13 01:38:11 PDT 2012
+Sat Oct 13 01:38:12 PDT 2012
+@01 instances/MIQCP/bip_cross_min.10.10.10.1.pip ===========
+Sat Oct 13 01:38:12 PDT 2012
+Sat Oct 13 01:38:12 PDT 2012
+@01 instances/MIQCP/ex1266.mps ===========
+Sat Oct 13 01:38:12 PDT 2012
+Sat Oct 13 01:38:13 PDT 2012
+@01 instances/MIQCP/meanvarx.mps ===========
+Sat Oct 13 01:38:13 PDT 2012
+Sat Oct 13 01:38:13 PDT 2012
+@01 instances/MIQCP/tltr.mps ===========
+Sat Oct 13 01:38:13 PDT 2012
+Sat Oct 13 01:38:13 PDT 2012
+@01 instances/MIQCP/util.mps ===========
+Sat Oct 13 01:38:13 PDT 2012
+Sat Oct 13 01:38:14 PDT 2012
+@01 instances/PseudoBoolean/factor-mod-size=9-P0=67-P1=349-P2=67-P3=499-P4=79-P5=347-P6=307-B.opb ===========
+Sat Oct 13 01:38:14 PDT 2012
+Sat Oct 13 01:38:14 PDT 2012
+@01 instances/PseudoBoolean/normalized-bsg_10_4_5.opb ===========
+Sat Oct 13 01:38:14 PDT 2012
+Sat Oct 13 01:38:14 PDT 2012
+@01 instances/PseudoBoolean/normalized-mds_10_4_3.opb ===========
+Sat Oct 13 01:38:14 PDT 2012
+Sat Oct 13 01:38:14 PDT 2012
+@01 instances/PseudoBoolean/normalized-mds_50_25_5.opb ===========
+Sat Oct 13 01:38:14 PDT 2012
+Sat Oct 13 01:38:15 PDT 2012
+@01 instances/Semicontinuous/meanvarxsc.lp ===========
+Sat Oct 13 01:38:15 PDT 2012
+Sat Oct 13 01:38:16 PDT 2012
+@01 instances/Semicontinuous/semicon1.mps ===========
+Sat Oct 13 01:38:16 PDT 2012
+Sat Oct 13 01:38:16 PDT 2012
+@01 instances/SOS/findRoot.lp ===========
+Sat Oct 13 01:38:16 PDT 2012
+Sat Oct 13 01:38:16 PDT 2012
+@01 instances/SOS/pcu_0.01.lp ===========
+Sat Oct 13 01:38:16 PDT 2012
+Sat Oct 13 01:38:17 PDT 2012
+@01 instances/SOS/pcu_0.1.lp ===========
+Sat Oct 13 01:38:17 PDT 2012
+Sat Oct 13 01:38:18 PDT 2012
+@01 instances/SOS/sparse2.lp ===========
+Sat Oct 13 01:38:18 PDT 2012
+Sat Oct 13 01:38:22 PDT 2012
+Sat Oct 13 01:38:22 PDT 2012
