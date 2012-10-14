@@ -1,0 +1,20 @@
+Installation instructions for scheduler.
+
+Notes:
+1. Currently, I have only been able to compile on Linux, specifically Ubuntu 12.04.  All these instructions assume you are using a blank install of Ubuntu 12.04.  I haven't been able to get python-zibopt to compile on Mac.
+2. These steps are mostly copied from the python-zibopt installation guide here: http://code.google.com/p/python-zibopt/wiki/Installation
+    My main contribution is finding out that they don't work on Macs!
+
+Steps:
+1. Download python-zibopt from: http://code.google.com/p/python-zibopt/downloads/detail?name=python-zibopt-0.7.2.dev-r226.tar.gz&can=2&q=
+2. Download zibopt-2.1.1 from: http://scip.zib.de/download.php?fname=ziboptsuite-2.1.1.tgz
+3. Install the following Debian packages: build-essential, python-dev, python-setuptools, zlibc, libgmp10.
+4. Install python-algebraic: easy_install python-algebraic
+5. Unzip zibopt-2.1.1 and run: make ziboptlib SHARED=true ZIMPL=false ZLIB=false READLINE=false
+6. Copy lib/libzibopt-2.1.1.linux.x86_64.gnu.opt.so to ./lib in this project and create a symlink to it named ./lib/libzibopt.so.
+7. Allow python-zibopt to reference the libraries and sources when you compile it:
+  export LD_LIBRARY_PATH=$HOME/lib
+  export LIBRARY_PATH=$HOME/lib
+  export C_INCLUDE_PATH=~/src/ziboptsuite-2.1.1/scip-2.1.1/src/
+8. Unzip python-zibopt and build it by running: sudo python setup.py build && sudo python setup.py test && sudo python setup.py install
+
