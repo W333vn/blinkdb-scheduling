@@ -4,6 +4,8 @@ Interfaces for scheduling queries.
 @author: Henry Milner (henrym@eecs.berkeley.edu)
 """
 
+from util import reprHelper
+
 class Scheduler(object):
   """
   Abstract interface for schedulers.
@@ -29,23 +31,56 @@ class OfflineScheduler(Scheduler):
 class Schedule(object):
   """
   A schedule of tasks produced by a scheduler.  Users can ask for all the tasks
-  that are scheduled for each time tick.
+  that are scheduled in any interval.
   """
   EMPTY_SCHEDULE = []
 
-  def __init__(self, tasksByTime):
+  def __init__(self, tasks):
     """
-    @tasksByTime: A dictionary from time to lists of ScheduledTasks.
+    @tasks: A list of ScheduledTasks.
     """
-    self.tasksByTime = tasksByTime
+    self.tasks = sorted(tasks, key=lambda task: task.getScheduledTime())
 
-  def getScheduledTasksForTime(self, time):
+  def getScheduledTasksForInterval(self, intervalStart, intervalEnd):
     """
     Get a list of ScheduledTasks, containing all the tasks that are scheduled
-    to start at time @tick along with the machine to which they should be
-    assigned.
+    to start during the interval [@intervalStart, @intervalEnd) (inclusive on
+    the left, non-inclusive on the right).  Each ScheduleTask has the time at
+    which it should be assigned and the machine to which it should be assigned.
     """
-    return self.tasksByTime.get(time, Schedule.EMPTY_SCHEDULE)
+    # TODO(henry): Could optimize this with a tree, but I couldn't find any
+    # after a quick search.
+    return [task for task in self.tasks\
+            if intervalStart <= task.getScheduledTime() < intervalEnd]
+
+  def __repr__(self):
+    return reprHelper(self)\
+      .add("tasks", self.tasks)\
+      .build()
+
+  def approxEquals(self, other, epsilon):
+    """
+    True if @self is approximately the same schedule as @other.  The list of
+    tasks scheduled must be the same, but the scheduling time of tasks in each
+    respective schedule may differ by as much as @epsilon.
+    """
+    foundTasks = 0
+    for task in self.tasks:
+      time = task.getScheduledTime()
+      tasksAtSameTime = other.getScheduledTasksForInterval(time - epsilon, time + epsilon)
+      foundMatch = False
+      for otherTask in tasksAtSameTime:
+        if task.getTask() == otherTask.getTask():
+          if task.getMachine() != otherTask.getMachine():
+            return False
+          foundMatch = True
+          foundTasks += 1
+          break
+      if not foundMatch:
+        return False
+    if foundTasks < len(other.tasks):
+      return False
+    return True
 
 class SystemConfiguration(object):
   """
@@ -121,15 +156,24 @@ class Query(object):
      choose another machine and ship the dataset over the network.
   """
 
-  def __init__(self, executionAlternatives):
+  def __init__(self, id, executionAlternatives):
     """
     @executionAlternatives is a list of JobDags, any one of which is
       sufficient to satisfy this query.
     """
+    self.id = id
     self.executionAlternatives = executionAlternatives
   
   def getExecutionAlternatives(self):
     return self.executionAlternatives
+
+  def getId(self):
+    return self.id
+
+  def __repr__(self):
+    return reprHelper(self)\
+    .add("id", self.id)\
+    .build()
 
 class JobDag(object):
   def __init__(self, root):
@@ -169,8 +213,9 @@ class Job(object):
   Note: It only makes sense to have len(@tasks) > @numRequiredTasks if the
   tasks are all interchangeable.
   """
-  def __init__(self, tasks, numRequiredTasks):
+  def __init__(self, id, tasks, numRequiredTasks):
     assert len(tasks) >= numRequiredTasks
+    self.id = id
     self.tasks = tasks
     self.numRequiredTasks = numRequiredTasks
   
@@ -179,6 +224,19 @@ class Job(object):
 
   def getNumRequiredTasks(self):
     return self.numRequiredTasks
+
+  def __eq__(self, other):
+    return self.id == other.id\
+      and self.tasks == other.tasks\
+      and self.numRequiredTasks == other.numRequiredTasks
+
+  def __ne__(self, other):
+    return not self == other
+
+  def __repr__(self):
+    return reprHelper(self)\
+    .add("id", self.id)\
+    .build()
 
 class Task(object):
   """
@@ -191,11 +249,23 @@ class Task(object):
   the machine in order to derive the running time.  Currently I'm assuming
   someone else is doing that, but we could do it here.
   """
-  def __init__(self, locationRunningTimes):
+  def __init__(self, id, locationRunningTimes):
+    self.id = id
     self.locationRunningTimes = locationRunningTimes
 
   def getRunningTime(self, machine):
     return self.locationRunningTimes[machine]
+
+  def __eq__(self, other):
+    return self.id == other.id and self.locationRunningTimes == other.locationRunningTimes
+
+  def __ne__(self, other):
+    return not self == other
+
+  def __repr__(self):
+    return reprHelper(self)\
+    .add("id", self.id)\
+    .build()
 
 class Machine(object):
   def __init__(self, id):
@@ -203,6 +273,17 @@ class Machine(object):
 
   def getId(self):
     return self.id
+
+  def __eq__(self, other):
+    return self.id == other.id
+
+  def __ne__(self, other):
+    return not self == other
+
+  def __repr__(self):
+    return reprHelper(self)\
+    .add("id", self.id)\
+    .build()
 
 class RunningTask(object):
   """
@@ -227,9 +308,10 @@ class ScheduledTask(object):
   """
   A task that is scheduled to run on a particular machine.
   """
-  def __init__(self, task, machine):
+  def __init__(self, task, machine, scheduledTime):
     self.task = task
     self.machine = machine
+    self.scheduledTime = scheduledTime
 
   def getTask(self):
     return self.task
@@ -237,11 +319,23 @@ class ScheduledTask(object):
   def getMachine(self):
     return self.machine
 
+  def getScheduledTime(self):
+    return self.scheduledTime
+
   def __eq__(self, other):
-    return self.task == other.task and self.machine == other.machine
+    return self.task == other.task\
+           and self.machine == other.machine\
+           and self.scheduledTime == other.scheduledTime
 
   def __ne__(self, other):
     return not self == other
+
+  def __repr__(self):
+    return reprHelper(self)\
+      .add("task", self.task)\
+      .add("machine", self.machine)\
+      .add("scheduledTime", self.scheduledTime)\
+      .build()
 
 class SystemFutureState(object):
   """

@@ -20,10 +20,10 @@ def addFakeRoots(query):
   """
 
   def addFakeRoot(originalJobDag):
-    fakeRootJob = Job([scheduling.Task(defaultdict(int))], 1)
+    fakeRootJob = Job(None, [scheduling.Task(None, defaultdict(int))], 1)
     return JobDag(JobNode(fakeRootJob, [originalJobDag.getRoot()]))
 
-  return Query([addFakeRoot(originalJobDag) for originalJobDag in query.getExecutionAlternatives()])
+  return Query(query.getId(), [addFakeRoot(originalJobDag) for originalJobDag in query.getExecutionAlternatives()])
 
 def visitTasks(query, visitor):
   """
@@ -64,7 +64,10 @@ def mapTasksToNodes(query):
   visitTasks(query, visitTask)
   return theMap
 
-LARGE_NUMBER = 100000 #FIXME
+# Note: I ran into problems when I made this number too large (e.g. 2**31).
+# Since this number has to be bigger than any task running time, this means
+# we can't handle very short time quanta for very long running tasks.
+LARGE_NUMBER = 2**20 #FIXME
 
 class OnlineGreedyScheduler(Scheduler):
   def __init__(self):
@@ -104,12 +107,30 @@ class OnlineGreedyScheduler(Scheduler):
 
     solver = scip.solver(quiet=False)
 
-    # Main problem variables.  Some others are introduced as needed when
-    # constraints are created.
+    # Variables:
+
+    # assignments[i][j] is true (i.e. 1) if task i is assigned to machine j.
+    # Note that multiple tasks can be assigned to a machine, but some
+    # constraints will ensure that they don't overlap in time if they do.
+    # Each task must be assigned to at least 1 machine, assuming it needs to
+    # run.
     assignments = [[solver.variable(scip.BINARY) for machineIdx in xrange(numMachines)]
                    for taskIdx in xrange(numTasks)] # Machines are columns, tasks are rows
+
+    # startingTimes[i] is the time at which task i starts in our solution.
     startingTimes = [solver.variable(scip.CONTINUOUS) for taskIdx in xrange(numTasks)]
+
+    # runningTimes[i] is the running time of task i in our solution.  This is a
+    # variable, since it depends on where the task runs.
+    # Note that, combining this with the above, startingTimes[i] + runningTimes[i]
+    # is the finishing time of task i.
     runningTimes = [solver.variable(scip.CONTINUOUS) for taskIdx in xrange(numTasks)]
+
+    # finishesAfter[A][B] is true (i.e. 1) if task A finishes after task B
+    # starts.  The point of this is that A and B run at the same time iff
+    # finishesAfter[A][B] and finishesAfter[B][A] are both true.
+    finishesAfter = [[solver.variable(scip.BINARY) for taskIdxB in xrange(numTasks)]
+                     for taskIdxA in xrange(numTasks)]
 
     # Encode the requirement that each task is assigned at least once.
     for taskIdx in xrange(numTasks):
@@ -118,25 +139,29 @@ class OnlineGreedyScheduler(Scheduler):
 
     # Encode the requirement that each machine runs only 1 task at a time.
     for taskAIdx in xrange(numTasks):
-      for taskBIdx in xrange(numTasks):
-        print("Adding nonoverlappingness constraints for ", taskAIdx, taskBIdx)
-        taskAFinishesBeforeTaskBStarts = solver.variable(scip.BINARY)
+      for taskBIdx in xrange(taskAIdx):
+        # If A finishes after B starts, then the LHS here is positive and
+        # finishesAfter[A][B] must be 1, in which case the constraint is
+        # satisfied because the RHS is very large.  Otherwise,
+        # finishesAfter[A][B] is free to be 0.
         solver += \
           (startingTimes[taskAIdx] + runningTimes[taskAIdx] - startingTimes[taskBIdx])\
-            <= LARGE_NUMBER * taskAFinishesBeforeTaskBStarts
+            <= LARGE_NUMBER * finishesAfter[taskAIdx][taskBIdx]
 
-        taskBFinishesBeforeTaskAStarts = solver.variable(scip.BINARY)
         solver += \
           (startingTimes[taskBIdx] + runningTimes[taskBIdx] - startingTimes[taskAIdx])\
-            <= LARGE_NUMBER * taskBFinishesBeforeTaskAStarts
+            <= LARGE_NUMBER * finishesAfter[taskBIdx][taskAIdx]
 
         for machineIdx in xrange(numMachines):
+          # It can't be the case that A and B are both assigned to this machine
+          # and they overlap in time.
+          print "%d and %d can't be assigned to machine %d and overlap" % (taskAIdx, taskBIdx, machineIdx)
           noOverlapBetweenAAndB = \
             (assignments[taskAIdx][machineIdx]
               + assignments[taskBIdx][machineIdx]
-              + taskAFinishesBeforeTaskBStarts
-              + taskBFinishesBeforeTaskAStarts)\
-            <= 4
+              + finishesAfter[taskAIdx][taskBIdx]
+              + finishesAfter[taskBIdx][taskAIdx])\
+            <= 3
           solver += noOverlapBetweenAAndB
         pass
 
@@ -145,7 +170,7 @@ class OnlineGreedyScheduler(Scheduler):
       dependentJobNodes = tasksToNodes[tasks[taskIdx]].getChildren()
       dependentTasks = flatten(jobNode.getJob().getTasks() for jobNode in dependentJobNodes)
       for dependencyTaskIdx in (taskIndices[task] for task in dependentTasks):
-        print "Dependency", (taskIdx, dependencyTaskIdx)
+        print "Task %d depends on %d" % (taskIdx, dependencyTaskIdx)
         taskStartsAfterDependency =\
           startingTimes[taskIdx] >= startingTimes[dependencyTaskIdx] + runningTimes[dependencyTaskIdx]
         solver += taskStartsAfterDependency
@@ -167,24 +192,28 @@ class OnlineGreedyScheduler(Scheduler):
     # which we added as fake roots to each query.  So everyone else gets
     # coefficient 0 in the objective.
     entersObjective = [0 if tasks[taskIdx] in originalTasks else 1 for taskIdx in xrange(numTasks)]
-    solution = solver.minimize(sum(entersObjective[taskIdx] * startingTime for taskIdx, startingTime in enumerate(startingTimes))
-                               + sum(entersObjective[taskIdx] * runningTime for taskIdx, runningTime in enumerate(runningTimes)))
+    objective = sum(entersObjective[taskIdx] * startingTime for taskIdx, startingTime in enumerate(startingTimes))\
+                + sum(entersObjective[taskIdx] * runningTime for taskIdx, runningTime in enumerate(runningTimes))
 
-    print ("Minimum total finishing time in solution: ", solution.objective)
+    # Now solve the problem.
+    solution = solver.minimize(objective=objective)
+
+    print "Minimum total finishing time in solution: %f" % solution.objective
     for taskIdx in xrange(numTasks):
-      print("Solution for task: ", taskIdx, solution[startingTimes[taskIdx]], solution[runningTimes[taskIdx]])
+      print "Solution for task %d: Start at %f, run for %f" % (taskIdx, solution[startingTimes[taskIdx]], solution[runningTimes[taskIdx]])
+    print "Finishes-after relationships: %s" % [[solution[finishesAfter[taskBIdx][taskAIdx]] for taskBIdx in xrange(numTasks)] for taskAIdx in xrange(numTasks)]
 
-    tasksByTime = defaultdict(list)
-    for taskIdx, startingTime in enumerate(startingTimes):
+    # Now turn the solution into a schedule.
+    scheduledTasks = []
+    for taskIdx in xrange(numTasks):
       task = tasks[taskIdx]
       if task in originalTasks:
         taskRow = assignments[taskIdx]
-        print("Assigned task: ", taskIdx, solution[startingTime], [solution[taskValue] for taskValue in taskRow])
         assignedMachineIdx = argmax(lambda machineIdx: solution[taskRow[machineIdx]], xrange(numMachines))
-        print("Assigned to machine: ", assignedMachineIdx)
-        tasksByTime[solution[startingTime]].append(ScheduledTask(tasks[taskIdx], machines[assignedMachineIdx]))
-    return Schedule(tasksByTime)
+        print "Assigned task %d starting at %f to machine %d" % (taskIdx, solution[startingTimes[taskIdx]], assignedMachineIdx)
+        scheduledTasks.append(ScheduledTask(tasks[taskIdx], machines[assignedMachineIdx], solution[startingTimes[taskIdx]]))
 
+    return Schedule(scheduledTasks)
 
 class TestOnlineGreedyScheduler(unittest.TestCase):
   def test_initialSchedule_simple(self):
@@ -197,19 +226,23 @@ class TestOnlineGreedyScheduler(unittest.TestCase):
     """
     machines = [Machine(0)]
     configuration = SystemConfiguration(machines)
-    query0Task0 = scheduling.Task({machines[0]: 1000})
-    query0 = Query([JobDag(JobNode(Job([query0Task0], 1), []))])
-    query1Task0 = scheduling.Task({machines[0]: 200})
-    query1 = Query([JobDag(JobNode(Job([query1Task0], 1), []))])
+    query0Task0 = scheduling.Task(0, {machines[0]: 1000})
+    query0 = Query(0, [JobDag(JobNode(Job(0, [query0Task0], 1), []))])
+    query1Task0 = scheduling.Task(1, {machines[0]: 200})
+    query1 = Query(1, [JobDag(JobNode(Job(1, [query1Task0], 1), []))])
     queue = [query0, query1]
     systemState = SystemState(configuration, 0, queue, [])
 
     scheduler = OnlineGreedyScheduler()
     schedule = scheduler.handleNewQuery(systemState)
 
-    self.assertEqual(schedule.getScheduledTasksForTime(0), [ScheduledTask(query1Task0, machines[0])])
-    self.assertEqual(schedule.getScheduledTasksForTime(200), [ScheduledTask(query0Task0, machines[0])])
-
+    self.assertTrue(
+      schedule.approxEquals(
+        Schedule([
+          ScheduledTask(query1Task0, machines[0], 0),
+          ScheduledTask(query0Task0, machines[0], 200)]),
+        EPSILON))
+#
   def test_initialSchedule_2machines(self):
     """
     The scheduler is asked for a schedule when no tasks are currently running
@@ -223,22 +256,22 @@ class TestOnlineGreedyScheduler(unittest.TestCase):
     """
     machines = [Machine(0), Machine(1)]
     configuration = SystemConfiguration(machines)
-    query0Task0 = scheduling.Task({machines[0]: 200, machines[1]: 300})
-    query0 = Query([JobDag(JobNode(Job([query0Task0], 1), []))])
-    query1Task0 = scheduling.Task({machines[0]: 300, machines[1]: 200})
-    query1 = Query([JobDag(JobNode(Job([query1Task0], 1), []))])
+    query0Task0 = scheduling.Task(0, {machines[0]: 200, machines[1]: 300})
+    query0 = Query(0, [JobDag(JobNode(Job(0, [query0Task0], 1), []))])
+    query1Task0 = scheduling.Task(0, {machines[0]: 300, machines[1]: 200})
+    query1 = Query(1, [JobDag(JobNode(Job(1, [query1Task0], 1), []))])
     queue = [query0, query1]
     systemState = SystemState(configuration, 0, queue, [])
 
     scheduler = OnlineGreedyScheduler()
     schedule = scheduler.handleNewQuery(systemState)
 
-    self.assertEqual(
-      schedule.getScheduledTasksForTime(0),
-      [
-        ScheduledTask(query0Task0, machines[0]),
-        ScheduledTask(query1Task0, machines[1])
-      ])
+    self.assertTrue(
+      schedule.approxEquals(
+        Schedule([
+          ScheduledTask(query0Task0, machines[0], 0),
+          ScheduledTask(query1Task0, machines[1], 0)]),
+        EPSILON))
 
   def test_initialSchedule_2machines_2tasks(self):
     """
@@ -254,30 +287,26 @@ class TestOnlineGreedyScheduler(unittest.TestCase):
     """
     machines = [Machine(0), Machine(1)]
     configuration = SystemConfiguration(machines)
-    query0Task0 = scheduling.Task({machines[0]: 200, machines[1]: 201})
-    query0Task1 = scheduling.Task({machines[0]: 1201, machines[1]: 1200})
-    query0 = Query([JobDag(JobNode(Job([query0Task0, query0Task1], 2), []))])
-    query1Task0 = scheduling.Task({machines[0]: 1000, machines[1]: 1001})
-    query1Task1 = scheduling.Task({machines[0]: 1001, machines[1]: 1000})
-    query1 = Query([JobDag(JobNode(Job([query1Task0, query1Task1], 2), []))])
+    query0Task0 = scheduling.Task(0, {machines[0]: 200, machines[1]: 201})
+    query0Task1 = scheduling.Task(1, {machines[0]: 1201, machines[1]: 1200})
+    query0 = Query(0, [JobDag(JobNode(Job(0, [query0Task0, query0Task1], 2), []))])
+    query1Task0 = scheduling.Task(2, {machines[0]: 1000, machines[1]: 1001})
+    query1Task1 = scheduling.Task(3, {machines[0]: 1001, machines[1]: 1000})
+    query1 = Query(1, [JobDag(JobNode(Job(1, [query1Task0, query1Task1], 2), []))])
     queue = [query0, query1]
     systemState = SystemState(configuration, 0, queue, [])
 
     scheduler = OnlineGreedyScheduler()
     schedule = scheduler.handleNewQuery(systemState)
 
-    self.assertEqual(
-      schedule.getScheduledTasksForTime(0),
-      [
-        ScheduledTask(query1Task0, machines[0]),
-        ScheduledTask(query1Task1, machines[1])
-      ])
-    self.assertEqual(
-      schedule.getScheduledTasksForTime(1000),
-      [
-        ScheduledTask(query0Task0, machines[0]),
-        ScheduledTask(query0Task1, machines[1])
-      ])
+    self.assertTrue(
+      schedule.approxEquals(
+        Schedule([
+          ScheduledTask(query1Task0, machines[0], 0),
+          ScheduledTask(query1Task1, machines[1], 0),
+          ScheduledTask(query0Task0, machines[0], 1000),
+          ScheduledTask(query0Task1, machines[1], 1000)]),
+        EPSILON))
 
 if __name__ == '__main__':
   unittest.main()

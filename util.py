@@ -4,6 +4,8 @@ Utilities for scheduling.
 @author: Henry Milner (henrym@eecs.berkeley.edu)
 """
 
+EPSILON = 2**-10
+
 NIL = [].__iter__()
 
 def flatten(deepList):
@@ -28,3 +30,21 @@ def argmax(func, args):
       maxVal = val
       maxArg = arg
   return maxArg
+
+def reprHelper(obj):
+  return __ReprHelper(type(obj))
+
+class __ReprHelper(object):
+  def __init__(self, clazz):
+    self.clazz = clazz
+    self.items = {}
+
+  def add(self, name, value):
+    self.items[name] = value
+    return self
+
+  def build(self):
+    return repr(self)
+
+  def __repr__(self):
+    return "{%s %s}" % (self.clazz.__name__, self.items)
