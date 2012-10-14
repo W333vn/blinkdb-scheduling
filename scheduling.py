@@ -100,7 +100,7 @@ class SystemState(object):
   """
   The current state of a system.
   """
-  def __init__(self, configuration, currentTime, queue, runningTasks):
+  def __init__(self, configuration, currentTime, queue, runningTasks, completedTasks):
     """
     @configuration: The static configuration of the system.
     @currentTime: The current time, in ticks (time is defined in arbitrary
@@ -109,11 +109,14 @@ class SystemState(object):
       have tasks running but have not yet finished.
     @runningTasks: A list of RunningTasks, the tasks that are currently running
       along with the machines on which they are running.
+    @completedTasks: A list of Tasks, the tasks that have been completed
+      already.  It is only necessary to include tasks for queries in @queue.
     """
     self.configuration = configuration
     self.currentTime = currentTime
     self.queue = queue
     self.runningTasks = runningTasks
+    self.completedTasks = completedTasks
     
   def getConfiguration(self):
     return self.configuration
@@ -129,6 +132,9 @@ class SystemState(object):
 
   def getRunningTasks(self):
     return self.runningTasks
+
+  def getCompletedTasks(self):
+    return self.completedTasks
 
 class Query(object):
   """
@@ -202,6 +208,12 @@ class JobNode(object):
   def getChildren(self):
     return self.children
 
+  def __repr__(self):
+    return reprHelper(self)\
+    .add("job", self.job)\
+    .add("children", self.children)\
+    .build()
+
 class Job(object):
   """
   A logical part of a query, like a map or reduce.  Comprised of one or more
@@ -218,7 +230,10 @@ class Job(object):
     self.id = id
     self.tasks = tasks
     self.numRequiredTasks = numRequiredTasks
-  
+
+  def getId(self):
+    return self.id
+
   def getTasks(self):
     return self.tasks
 
@@ -236,6 +251,7 @@ class Job(object):
   def __repr__(self):
     return reprHelper(self)\
     .add("id", self.id)\
+    .add("tasks", self.tasks)\
     .build()
 
 class Task(object):
@@ -252,6 +268,9 @@ class Task(object):
   def __init__(self, id, locationRunningTimes):
     self.id = id
     self.locationRunningTimes = locationRunningTimes
+
+  def getId(self):
+    return self.id
 
   def getRunningTime(self, machine):
     return self.locationRunningTimes[machine]
