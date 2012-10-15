@@ -1,0 +1,12 @@
+3a4,6
+> #NOTE(henry): For the BlinkDB-scheduling project, set this to the lib directory of the scheduling project: $CHECKOUT/lib
+> BASEDIR = '/home/henrym/tmp'
+> 
+9c12,13
+<         libraries = ['zibopt']
+---
+>         libraries = ['zibopt'],
+>         library_dirs = [ BASEDIR ]
+26a31,32
+> 
+>     include_dirs = [ BASEDIR+'/ziboptsuite-2.1.1/scip-2.1.1/src/' ],

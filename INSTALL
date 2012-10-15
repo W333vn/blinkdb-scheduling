@@ -4,6 +4,7 @@ Notes:
 1. Currently, I have only been able to compile on Linux, specifically Ubuntu 12.04.  All these instructions assume you are using a blank install of Ubuntu 12.04.  I haven't been able to get python-zibopt to compile on Mac.
 2. These steps are mostly copied from the python-zibopt installation guide here: http://code.google.com/p/python-zibopt/wiki/Installation
     My main contribution is finding out that they don't work on Macs!
+3. $HOME below refers to the directory containing this file.
 
 Steps:
 1. Download python-zibopt from: http://code.google.com/p/python-zibopt/downloads/detail?name=python-zibopt-0.7.2.dev-r226.tar.gz&can=2&q=
@@ -16,5 +17,9 @@ Steps:
   export LD_LIBRARY_PATH=$HOME/lib
   export LIBRARY_PATH=$HOME/lib
   export C_INCLUDE_PATH=~/src/ziboptsuite-2.1.1/scip-2.1.1/src/
-8. Unzip python-zibopt and build it by running: sudo python setup.py build && sudo python setup.py test && sudo python setup.py install
+  Note: You need to have LD_LIBRARY_PATH set as above whenever you run this project.  The other two are needed only for compiling python-zibopt.
+8. Unzip python-zibopt and enter its directory.
+9. Apply a patch to setup.py in python-zibopt: patch -p0 setup.py < ../python-zibopt-setup-patch.diff
+10. Edit setup.py and set BASEDIR to $HOME/lib .
+11. Build python-zibopt by running: sudo python setup.py build && sudo python setup.py install
 
